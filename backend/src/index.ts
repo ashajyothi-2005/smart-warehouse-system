@@ -13,13 +13,22 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// Attach REST routes
-app.use('/api', warehouseRoutes);
+// Root health & status endpoint
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    status: 'online',
+    engine: 'Smart Warehouse Decision Engine API',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'UP', timestamp: new Date() });
 });
+
+// Attach REST routes
+app.use('/api', warehouseRoutes);
 
 // Initialize WebSocket
 initSocketServer(server);
