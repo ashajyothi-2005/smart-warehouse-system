@@ -1,0 +1,129 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum OrderStatus {
+  CREATED
+  PRIORTIZED
+  ALLOCATED
+  PARTIALLY_ALLOCATED
+  PICKING
+  PACKED
+  DISPATCHED
+  CANCELLED
+}
+
+enum PriorityTier {
+  ENTERPRISE
+  VIP
+  STANDARD
+}
+
+enum ExceptionType {
+  DAMAGED_ITEM
+  MISSING_ITEM
+  STOCK_MISMATCH
+  SLA_BREACH_RISK
+}
+
+enum ExceptionStatus {
+  OPEN
+  RESOLVED
+}
+
+model Product {
+  id               String      @id @default(uuid())
+  sku              String      @unique
+  name             String
+  category         String
+  unitPrice        Float
+  reorderThreshold Int         @default(20)
+  reorderQuantity  Int         @default(100)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  inventories      Inventory[]
+  orderItems       OrderItem[]
+}
+
+model BinLocation {
+  id            String      @id @default(uuid())
+  code          String      @unique
+  aisle         String
+  rack          Int
+  shelf         Int
+  isQuarantined Boolean     @default(false)
+
+  inventories   Inventory[]
+}
+
+model Inventory {
+  id            String      @id @default(uuid())
+  productId     String
+  binLocationId String
+  quantity      Int         @default(0)
+  reservedQty   Int         @default(0)
+
+  product       Product     @relation(fields: [productId], references: [id])
+  binLocation   BinLocation @relation(fields: [binLocationId], references: [id])
+
+  @@unique([productId, binLocationId])
+}
+
+model Order {
+  id             String       @id @default(uuid())
+  orderNumber    String       @unique
+  customerTier   PriorityTier @default(STANDARD)
+  status         OrderStatus  @default(CREATED)
+  priorityScore  Float        @default(0.0)
+  slaDeadline    DateTime
+  totalValue     Float
+  isBackorder    Boolean      @default(false)
+  parentOrderId  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  orderItems     OrderItem[]
+  pickTasks      PickTask[]
+  exceptions     ExceptionLog[]
+}
+
+model OrderItem {
+  id           String   @id @default(uuid())
+  orderId      String
+  productId    String
+  requestedQty Int
+  allocatedQty Int      @default(0)
+
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id])
+}
+
+model PickTask {
+  id           String    @id @default(uuid())
+  orderId      String
+  pickerName   String?
+  status       String    @default("PENDING")
+  pickPath     Json
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  order        Order     @relation(fields: [orderId], references: [id])
+}
+
+model ExceptionLog {
+  id           String          @id @default(uuid())
+  orderId      String?
+  type         ExceptionType
+  description  String
+  status       ExceptionStatus @default(OPEN)
+  resolution   String?
+  createdAt    DateTime        @default(now())
+
+  order        Order?          @relation(fields: [orderId], references: [id])
+}
